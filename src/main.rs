@@ -1,4 +1,22 @@
-use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
+use lambda_http::{run, service_fn, tracing, Body, Error, Request, Response};
+use serde::{Deserialize, Serialize};
+use tmflib::gen_code;
+
+
+#[derive(Deserialize)]
+struct CodeRequest {
+    id: String,
+    name: String,
+    offset: Option<u32>,
+    prefix: Option<String>,
+    length: Option<usize>,
+}
+
+#[derive(Default,Serialize)]
+struct CodeResponse {
+    code: String,
+    hash: String,
+}
 
 /// This is the main body for the function.
 /// Write your code inside it.
@@ -6,20 +24,40 @@ use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Re
 /// - https://github.com/awslabs/aws-lambda-rust-runtime/tree/main/examples
 async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
     // Extract some useful information from the request
-    let who = event
-        .query_string_parameters_ref()
-        .and_then(|params| params.first("name"))
-        .unwrap_or("world");
-    let message = format!("Hello {who}, this is an AWS Lambda HTTP request");
-
-    // Return something that implements IntoResponse.
-    // It will be serialized to the right response event automatically by the runtime
-    let resp = Response::builder()
-        .status(200)
-        .header("content-type", "text/html")
-        .body(message.into())
-        .map_err(Box::new)?;
-    Ok(resp)
+    match event.body() {
+        Body::Text(t) => {
+            // Process String body
+            let code_request : CodeRequest = serde_json::from_str(t.as_str()).unwrap();
+            let (code,hash) = gen_code(code_request.name, code_request.id, code_request.offset, code_request.prefix, code_request.length);
+            let code_response = CodeResponse {
+                code,
+                hash,
+            };
+            let body = Body::from_maybe_encoded(false, serde_json::to_string(&code_response).unwrap().as_str());
+            let resp = Response::builder()
+                .status(200)
+                .header("conent-type", "applicaiton/json")
+                .body(body)
+                .map_err(Box::new)?;
+            Ok(resp)
+        },
+        Body::Empty => {
+            let body = Body::from_maybe_encoded(false, serde_json::to_string(&CodeResponse::default()).unwrap().as_str());
+            let resp = Response::builder()
+                .status(201)
+                .body(body)
+                .map_err(Box::new)?;
+            Ok(resp)
+        },
+        Body::Binary(_b) => {
+            let body = Body::from_maybe_encoded(false, serde_json::to_string(&CodeResponse::default()).unwrap().as_str());
+            let resp = Response::builder()
+            .status(201)
+            .body(body)
+            .map_err(Box::new)?;
+             Ok(resp)    
+        }
+    }
 }
 
 #[tokio::main]

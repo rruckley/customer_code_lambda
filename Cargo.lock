@@ -236,6 +236,8 @@ name = "customer_code_lambda"
 version = "0.1.0"
 dependencies = [
  "lambda_http",
+ "serde",
+ "serde_json",
  "tmflib",
  "tokio",
 ]
